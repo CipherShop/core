@@ -25,10 +25,10 @@ contract CSHOPPresale is Context, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // The token being sold
-    IERC20 private _token;
+    IERC20 public _token;
 
     // Address where funds are collected
-    address payable private _wallet;
+    address payable public _wallet;
 
     // How many token units a buyer gets per wei.
     // The rate is the conversion between wei and the smallest and indivisible token unit.
@@ -38,6 +38,9 @@ contract CSHOPPresale is Context, ReentrancyGuard {
 
     // Amount of wei raised
     uint256 private _weiRaised;
+
+    // Amount of tokens sold
+    uint256 private _tokensSold;
 
     AggregatorV3Interface priceFeed;
 
@@ -76,20 +79,6 @@ contract CSHOPPresale is Context, ReentrancyGuard {
     }
 
     /**
-     * @return the token being sold.
-     */
-    function token() public view returns (IERC20) {
-        return _token;
-    }
-
-    /**
-     * @return the address where funds are collected.
-     */
-    function wallet() public view returns (address payable) {
-        return _wallet;
-    }
-
-    /**
      * @return the number of token units a buyer gets per wei.
      */
     function rate() public view returns (uint256) {
@@ -101,6 +90,13 @@ contract CSHOPPresale is Context, ReentrancyGuard {
      */
     function weiRaised() public view returns (uint256) {
         return _weiRaised;
+    }
+
+    /**
+     * @return the amount of tokens sold.
+     */
+    function tokensSold() public view returns (uint256) {
+        return _tokensSold;
     }
 
     /**
@@ -116,8 +112,11 @@ contract CSHOPPresale is Context, ReentrancyGuard {
         // calculate token amount to be created
         uint256 tokens = _getTokenAmount(weiAmount);
 
+        require(tokensSold().add(tokens) <= 2_000_000 * 1e18, "Crowdsale: tokens sold exceeds the amount available");
+
         // update state
         _weiRaised = _weiRaised.add(weiAmount);
+        _tokensSold = _tokensSold.add(tokens);
 
         _processPurchase(beneficiary, tokens);
         emit TokensPurchased(_msgSender(), beneficiary, weiAmount, tokens);
@@ -140,22 +139,22 @@ contract CSHOPPresale is Context, ReentrancyGuard {
     function _preValidatePurchase(address beneficiary, uint256 weiAmount) internal {
         require(beneficiary != address(0), "Crowdsale: beneficiary is the zero address");
         require(weiAmount != 0, "Crowdsale: weiAmount is 0");
-        require(weiRaised() < 2_000_000 * 1e18);
+        require(tokensSold() < 2_000_000 * 1e18, "Crowdsale: there are no tokens available for sale");
         (,int256 _price,,,) = priceFeed.latestRoundData();
         uint price = uint256(_price).div(100000000);
-        if (weiRaised() > 1_600_000 * 1e18) {
+        if (tokensSold() > 1_600_000 * 1e18) {
             uint result = price.div(20).mul(100);
             _rate = result;
         }
-        else if (weiRaised() > 1_200_000 * 1e18) {
+        else if (tokensSold() > 1_200_000 * 1e18) {
             uint result = price.div(19).mul(100);
             _rate = result;
         }
-        else if (weiRaised() > 800_000 * 1e18) {
+        else if (tokensSold() > 800_000 * 1e18) {
             uint result = price.div(18).mul(100);
             _rate = result;
         }
-        else if (weiRaised() > 400_000 * 1e18) {
+        else if (tokensSold() > 400_000 * 1e18) {
             uint result = price.div(17).mul(100);
             _rate = result;
         } else {
@@ -210,7 +209,6 @@ contract CSHOPPresale is Context, ReentrancyGuard {
      * @return Number of tokens that can be purchased with the specified _weiAmount
      */
     function _getTokenAmount(uint256 weiAmount) internal view returns (uint256) {
-        require(weiRaised().add(weiAmount.mul(_rate)) <= 2_000_000 * 1e18);
         return weiAmount.mul(_rate);
     }
 
